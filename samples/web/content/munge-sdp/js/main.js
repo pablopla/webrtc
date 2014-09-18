@@ -11,6 +11,7 @@ var createOfferButton = document.querySelector('button#createOffer');
 var setOfferButton = document.querySelector('button#setOffer');
 var createAnswerButton = document.querySelector('button#createAnswer');
 var setAnswerButton = document.querySelector('button#setAnswer');
+var toggleCamButton = document.querySelector('button#toggleCam');
 var hangupButton = document.querySelector('button#hangup');
 
 getMediaButton.onclick = getMedia;
@@ -19,6 +20,7 @@ createOfferButton.onclick = createOffer;
 setOfferButton.onclick = setOffer;
 createAnswerButton.onclick = createAnswer;
 setAnswerButton.onclick = setAnswer;
+toggleCamButton.onclick = toggleCam;
 hangupButton.onclick = hangup;
 
 var offerSdpTextarea = document.querySelector('div#local textarea');
@@ -118,6 +120,7 @@ function createPeerConnection() {
   createAnswerButton.disabled = false;
   setOfferButton.disabled = false;
   setAnswerButton.disabled = false;
+  toggleCamButton.disabled = false;
   hangupButton.disabled = false;
   trace('Starting call');
   var videoTracks = localStream.getVideoTracks();
@@ -239,6 +242,14 @@ function gotRemoteStream(e) {
   // Call the polyfill wrapper to attach the media stream to this element.
   attachMediaStream(remoteVideo, e.stream);
   trace('Received remote stream');
+
+  e.stream.onaddtrack = function() {
+    trace('onaddtrack');
+  };
+
+  e.stream.onremovetrack = function () {
+    trace('onremovetrack');
+  }
 }
 
 function iceCallback1(event) {
@@ -263,4 +274,35 @@ function onAddIceCandidateSuccess() {
 
 function onAddIceCandidateError(error) {
   trace('Failed to add Ice Candidate: ' + error.toString());
+}
+
+/* toggle cam */
+
+var videoTrack;
+
+function toggleCam() {
+  if(!videoTrack) {
+    videoTrack = localStream.getVideoTracks()[0];
+  }
+  if(localStream.getVideoTracks().length) {
+    localStream.removeTrack(videoTrack);
+  } else {
+    localStream.addTrack(videoTrack);
+  }
+  renegotiate();
+}
+
+function renegotiate() {
+  localPeerConnection.createOffer(function(offer) {
+    localPeerConnection.setLocalDescription(offer, function() {
+      remotePeerConnection.setRemoteDescription(offer, function() {
+        remoteVideo.src = remoteVideo.src;
+        remotePeerConnection.createAnswer(function(answer) {
+          remotePeerConnection.setLocalDescription(answer, function() {
+            localPeerConnection.setRemoteDescription(answer, function() {}, function() {});
+          }, function() {});
+        }, function() {});
+      });
+    }, function() {});
+  });
 }
